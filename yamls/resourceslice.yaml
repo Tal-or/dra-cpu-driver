@@ -1,0 +1,54 @@
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceSlice
+metadata:
+  name: cnfdt12.lab.eng.tlv2.redhat.com
+spec:
+  # The node name indicates the node.
+  #
+  # Each driver on a node provides pools of devices for allocation,
+  # with unique device names inside each pool. A pool might be defined
+  # by more than one ResourceSlice.
+  nodeName: cnfdt12.lab.eng.tlv2.redhat.com
+  driver: rte.nrt
+  pool:
+    name: cnfdt12.lab.eng.tlv2.redhat.com
+    generation: 1
+    resourceSliceCount: 1
+  # name consider unique by a combination of driver/poolName/device
+  devices:
+  - name: cpu-0 # unique name: rte.nrt/cnfdt12.lab.eng.tlv2.redhat.com/cpu-0
+    basic:
+      attributes:
+        zone:
+          int: 0
+        reserved:
+          bool: true # if reserved than allocatable=false and available=false
+  - name: cpu-1
+    basic:
+      attributes:
+        zone:
+          int: 1
+        reserved:
+          bool: true # if reserved than allocatable=false and available=false
+  - name: cpu-2
+    basic:
+      attributes:
+        zone:
+          int: 0
+        allocatable:
+          bool: true
+        available:
+          bool: true
+        shared: # can be shared by GU pods/container
+          bool: true
+  - name: cpu-3
+    basic:
+      attributes:
+        zone:
+          int: 0
+        allocatable:
+          bool: true
+        available:
+          bool: true
+        exclusive: # can be allocated exclusively by GU pods/container
+          bool: true

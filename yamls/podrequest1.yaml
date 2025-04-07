@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+spec:
+  selector:
+    matchLabels:
+      name: app-deployment
+  template:
+    metadata:
+      labels:
+        name: app-deployment
+      name: app-pod
+    spec:
+      resourceClaims:
+        - name: my-pod
+          resourceClaimTemplateName: my-pod-claim
+#        - name: shared-cpus
+#          resourceClaimTemplateName: shared-cpu-claim
+#        - name: exclusive-cpus
+#          resourceClaimTemplateName: exclusive-cpu-claim
+      nodeSelector:
+        node-role.kubernetes.io/worker-cnf: ""
+      containers:
+      - name: app-container2
+        image: quay.io/jitesoft/alpine
+        command: ["/bin/sh", "-c"]
+        args: [ "while true; do sleep 10000; done;" ]
+           # Guaranteed pod
+        resources:
+          claims:
+            - name: my-pod

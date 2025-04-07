@@ -1,0 +1,49 @@
+apiVersion: topology.node.k8s.io/v1alpha2
+attributes:
+  - name: nodeTopologyPodsFingerprint
+    value: pfp0v001ef46db3751d8e999
+  - name: nodeTopologyPodsFingerprintMethod
+    value: with-exclusive-resources
+  - name: topologyManagerScope
+    value: container
+  - name: topologyManagerPolicy
+    value: single-numa-node
+kind: NodeResourceTopology
+metadata:
+  annotations:
+    k8stopoawareschedwg/rte-update: periodic
+    topology.node.k8s.io/fingerprint: pfp0v001ef46db3751d8e999
+  name: cnfdt12.lab.eng.tlv2.redhat.com
+zones:
+  - costs:
+      - name: node-0
+        value: 10
+      - name: node-1
+        value: 21
+    name: node-0
+    resources:
+      - allocatable: "48"
+        available: "48"
+        capacity: "52"
+        name: cpu
+      - allocatable: "48044085248"
+        available: "48044085248"
+        capacity: "49197518848"
+        name: memory
+    type: Node
+  - costs:
+      - name: node-0
+        value: 21
+      - name: node-1
+        value: 10
+    name: node-1
+    resources:
+      - allocatable: "52"
+        available: "52"
+        capacity: "52"
+        name: cpu
+      - allocatable: "50668871680"
+        available: "50668871680"
+        capacity: "50668871680"
+        name: memory
+    type: Node

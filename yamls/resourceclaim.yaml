@@ -1,0 +1,43 @@
+#apiVersion: resource.k8s.io/v1beta1
+#kind: ResourceClaimTemplate
+#metadata:
+#  name: exclusive-cpu-claim
+#spec:
+#  spec:
+#    devices:
+#      requests:
+#        - name: "exclusive-cpu-request"
+#          deviceClassName: exclusive-cpu
+#---
+#apiVersion: resource.k8s.io/v1beta1
+#kind: ResourceClaimTemplate
+#metadata:
+#  name: shared-cpu-claim
+#spec:
+#  spec:
+#    devices:
+#      requests:
+#        - name: "shared-cpu-request"
+#          deviceClassName: shared-cpu
+#---
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceClaimTemplate
+metadata:
+  name: my-pod-claim
+spec:
+  spec:
+    devices:
+      requests:
+        - name: "shared-cpu-request"
+          deviceClassName: shared-cpu
+          count: 4
+        - name: "exclusive-cpu-request"
+          deviceClassName: exclusive-cpu
+      constraints:
+        # forces cpus to be from the same zone
+        - matchAttribute: "manager.cpu.com/zone"
+
+
+
+
+
