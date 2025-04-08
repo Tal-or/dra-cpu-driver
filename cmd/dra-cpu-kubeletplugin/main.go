@@ -19,40 +19,18 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/urfave/cli/v2"
-	"k8s.io/klog/v2"
 	"os"
 	"os/signal"
 	"syscall"
 
-	coreclientset "k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/dra-example-driver/pkg/flags"
+	"k8s.io/klog/v2"
+
+	"github.com/urfave/cli/v2"
+
+	"github.com/Tal-or/dra-cpu-driver/pkg/config"
+	"github.com/Tal-or/dra-cpu-driver/pkg/driver"
+	"github.com/Tal-or/dra-cpu-driver/pkg/flags"
 )
-
-const (
-	DriverName = "manager.cpu.com"
-
-	PluginRegistrationPath     = "/var/lib/kubelet/plugins_registry/" + DriverName + ".sock"
-	DriverPluginPath           = "/var/lib/kubelet/plugins/" + DriverName
-	DriverPluginSocketPath     = DriverPluginPath + "/plugin.sock"
-	DriverPluginCheckpointFile = "checkpoint.json"
-)
-
-type Flags struct {
-	kubeClientConfig flags.KubeClientConfig
-	loggingConfig    *flags.LoggingConfig
-
-	cdiRoot     string
-	nodeName    string
-	reserved    string
-	allocatable string
-	shared      string
-}
-
-type Config struct {
-	flags      *Flags
-	coreclient coreclientset.Interface
-}
 
 func main() {
 	if err := newApp().Run(os.Args); err != nil {
@@ -62,48 +40,48 @@ func main() {
 }
 
 func newApp() *cli.App {
-	flags := &Flags{
-		loggingConfig: flags.NewLoggingConfig(),
+	progArgs := &config.ProgArgs{
+		LoggingConfig: flags.NewLoggingConfig(),
 	}
 	cliFlags := []cli.Flag{
 		&cli.StringFlag{
 			Name:        "node-name",
 			Usage:       "The name of the node to be worked on.",
 			Required:    true,
-			Destination: &flags.nodeName,
+			Destination: &progArgs.NodeName,
 			EnvVars:     []string{"NODE_NAME"},
 		},
 		&cli.StringFlag{
 			Name:        "cdi-root",
 			Usage:       "Absolute path to the directory where CDI files will be generated.",
 			Value:       "/etc/cdi",
-			Destination: &flags.cdiRoot,
+			Destination: &progArgs.CdiRoot,
 			EnvVars:     []string{"CDI_ROOT"},
 		},
 		&cli.StringFlag{
 			Name:        "reserved-cpus",
 			Usage:       "reserved-cpus",
 			Value:       "",
-			Destination: &flags.reserved,
+			Destination: &progArgs.Reserved,
 			EnvVars:     []string{"RESERVED_CPUS"},
 		},
 		&cli.StringFlag{
 			Name:        "allocatable-cpus",
 			Usage:       "allocatable-cpus",
 			Value:       "",
-			Destination: &flags.allocatable,
+			Destination: &progArgs.Allocatable,
 			EnvVars:     []string{"ALLOCATABLE_CPUS"},
 		},
 		&cli.StringFlag{
 			Name:        "shared-cpus",
 			Usage:       "shared-cpus",
 			Value:       "",
-			Destination: &flags.shared,
+			Destination: &progArgs.Shared,
 			EnvVars:     []string{"SHARED_CPUS"},
 		},
 	}
-	cliFlags = append(cliFlags, flags.kubeClientConfig.Flags()...)
-	cliFlags = append(cliFlags, flags.loggingConfig.Flags()...)
+	cliFlags = append(cliFlags, progArgs.KubeClientConfig.Flags()...)
+	cliFlags = append(cliFlags, progArgs.LoggingConfig.Flags()...)
 
 	app := &cli.App{
 		Name:            "dra-cpu-kubeletplugin",
@@ -115,34 +93,34 @@ func newApp() *cli.App {
 			if c.Args().Len() > 0 {
 				return fmt.Errorf("arguments not supported: %v", c.Args().Slice())
 			}
-			return flags.loggingConfig.Apply()
+			return progArgs.LoggingConfig.Apply()
 		},
 		Action: func(c *cli.Context) error {
 			ctx := c.Context
-			clientSets, err := flags.kubeClientConfig.NewClientSets()
+			clientSets, err := progArgs.KubeClientConfig.NewClientSets()
 			if err != nil {
 				return fmt.Errorf("create client: %v", err)
 			}
 
-			config := &Config{
-				flags:      flags,
-				coreclient: clientSets.Core,
+			cfg := &config.Config{
+				ProgArgs:   progArgs,
+				Coreclient: clientSets.Core,
 			}
 
-			return StartPlugin(ctx, config)
+			return StartPlugin(ctx, cfg)
 		},
 	}
 
 	return app
 }
 
-func StartPlugin(ctx context.Context, config *Config) error {
-	err := os.MkdirAll(DriverPluginPath, 0750)
+func StartPlugin(ctx context.Context, cfg *config.Config) error {
+	err := os.MkdirAll(config.DriverPluginPath, 0750)
 	if err != nil {
 		return err
 	}
 
-	driver, err := NewDriver(ctx, config)
+	drv, err := driver.New(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -151,7 +129,7 @@ func StartPlugin(ctx context.Context, config *Config) error {
 	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	<-sigc
 
-	err = driver.Shutdown(ctx)
+	err = drv.Shutdown(ctx)
 	if err != nil {
 		klog.FromContext(ctx).Error(err, "Unable to cleanly shutdown driver")
 	}

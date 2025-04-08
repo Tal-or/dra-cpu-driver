@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-package main
+package discovery
 
 import (
 	"fmt"
+	"math/rand"
 
 	resourceapi "k8s.io/api/resource/v1beta1"
 	"k8s.io/utils/cpuset"
 	"k8s.io/utils/ptr"
-	"math/rand"
 
 	"github.com/google/uuid"
 )
 
-func enumerateAllPossibleDevices(cpus map[string]*cpuset.CPUSet) (AllocatableDevices, error) {
+type AllocatableDevices map[string]resourceapi.Device
+
+func EnumerateAllPossibleDevices(cpus map[string]*cpuset.CPUSet) (AllocatableDevices, error) {
 	allDevices := make(AllocatableDevices)
 	for class, list := range cpus {
 		devices := enumerateDevicesForCPUClass(class, list)

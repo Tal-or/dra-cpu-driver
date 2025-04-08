@@ -1,10 +1,14 @@
-package main
+package state
 
 import (
 	"encoding/json"
 
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager/checksum"
+	
+	"github.com/Tal-or/dra-cpu-driver/pkg/devices"
 )
+
+const DriverPluginCheckpointFile = "checkpoint.json"
 
 type Checkpoint struct {
 	Checksum checksum.Checksum `json:"checksum"`
@@ -12,14 +16,14 @@ type Checkpoint struct {
 }
 
 type CheckpointV1 struct {
-	PreparedClaims PreparedClaims `json:"preparedClaims,omitempty"`
+	PreparedClaims devices.PreparedClaims `json:"preparedClaims,omitempty"`
 }
 
 func newCheckpoint() *Checkpoint {
 	pc := &Checkpoint{
 		Checksum: 0,
 		V1: &CheckpointV1{
-			PreparedClaims: make(PreparedClaims),
+			PreparedClaims: make(devices.PreparedClaims),
 		},
 	}
 	return pc

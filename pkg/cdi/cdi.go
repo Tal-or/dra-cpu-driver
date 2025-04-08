@@ -14,44 +14,47 @@
  * limitations under the License.
  */
 
-package main
+package cdi
 
 import (
 	"fmt"
+	"github.com/Tal-or/dra-cpu-driver/pkg/devices"
 	"os"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	cdiparser "tags.cncf.io/container-device-interface/pkg/parser"
 	cdispec "tags.cncf.io/container-device-interface/specs-go"
+
+	"github.com/Tal-or/dra-cpu-driver/pkg/config"
 )
 
 const (
-	cdiVendor = "k8s." + DriverName
+	cdiVendor = "k8s." + config.DriverName
 	cdiClass  = "cpu"
 	cdiKind   = cdiVendor + "/" + cdiClass
 
 	cdiCommonDeviceName = "common"
 )
 
-type CDIHandler struct {
+type Handler struct {
 	cache *cdiapi.Cache
 }
 
-func NewCDIHandler(config *Config) (*CDIHandler, error) {
+func NewHandler(config *config.Config) (*Handler, error) {
 	cache, err := cdiapi.NewCache(
-		cdiapi.WithSpecDirs(config.flags.cdiRoot),
+		cdiapi.WithSpecDirs(config.ProgArgs.CdiRoot),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a new CDI cache: %w", err)
 	}
-	handler := &CDIHandler{
+	handler := &Handler{
 		cache: cache,
 	}
 
 	return handler, nil
 }
 
-func (cdi *CDIHandler) CreateCommonSpecFile() error {
+func (cdi *Handler) CreateCommonSpecFile() error {
 	spec := &cdispec.Spec{
 		Kind: cdiKind,
 		Devices: []cdispec.Device{
@@ -60,7 +63,7 @@ func (cdi *CDIHandler) CreateCommonSpecFile() error {
 				ContainerEdits: cdispec.ContainerEdits{
 					Env: []string{
 						fmt.Sprintf("KUBERNETES_NODE_NAME=%s", os.Getenv("NODE_NAME")),
-						fmt.Sprintf("DRA_RESOURCE_DRIVER_NAME=%s", DriverName),
+						fmt.Sprintf("DRA_RESOURCE_DRIVER_NAME=%s", config.DriverName),
 					},
 				},
 			},
@@ -81,7 +84,7 @@ func (cdi *CDIHandler) CreateCommonSpecFile() error {
 	return cdi.cache.WriteSpec(spec, specName)
 }
 
-func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices PreparedDevices) error {
+func (cdi *Handler) CreateClaimSpecFile(claimUID string, devices devices.PreparedDevices) error {
 	specName := cdiapi.GenerateTransientSpecName(cdiVendor, cdiClass, claimUID)
 
 	spec := &cdispec.Spec{
@@ -116,12 +119,12 @@ func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices PreparedDevi
 	return cdi.cache.WriteSpec(spec, specName)
 }
 
-func (cdi *CDIHandler) DeleteClaimSpecFile(claimUID string) error {
+func (cdi *Handler) DeleteClaimSpecFile(claimUID string) error {
 	specName := cdiapi.GenerateTransientSpecName(cdiVendor, cdiClass, claimUID)
 	return cdi.cache.RemoveSpec(specName)
 }
 
-func (cdi *CDIHandler) GetClaimDevices(claimUID string, devices []string) []string {
+func (cdi *Handler) GetClaimDevices(claimUID string, devices []string) []string {
 	cdiDevices := []string{
 		cdiparser.QualifiedName(cdiVendor, cdiClass, cdiCommonDeviceName),
 	}

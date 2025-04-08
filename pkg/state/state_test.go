@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package state
 
 import (
 	"testing"
@@ -22,11 +22,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
+	
+	"github.com/Tal-or/dra-cpu-driver/pkg/devices"
 )
 
 func TestPreparedDevicesGetDevices(t *testing.T) {
 	tests := map[string]struct {
-		preparedDevices PreparedDevices
+		preparedDevices devices.PreparedDevices
 		expected        []*drapbv1.Device
 	}{
 		"nil PreparedDevices": {
@@ -34,7 +36,7 @@ func TestPreparedDevicesGetDevices(t *testing.T) {
 			expected:        nil,
 		},
 		"several PreparedDevices": {
-			preparedDevices: PreparedDevices{
+			preparedDevices: devices.PreparedDevices{
 				{Device: drapbv1.Device{DeviceName: "dev1"}},
 				{Device: drapbv1.Device{DeviceName: "dev2"}},
 				{Device: drapbv1.Device{DeviceName: "dev3"}},

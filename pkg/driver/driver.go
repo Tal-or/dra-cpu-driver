@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package driver
 
 import (
 	"context"
@@ -24,45 +24,47 @@ import (
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
-
 	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
+
+	"github.com/Tal-or/dra-cpu-driver/pkg/config"
+	"github.com/Tal-or/dra-cpu-driver/pkg/state"
 )
 
-var _ drapbv1.DRAPluginServer = &driver{}
+var _ drapbv1.DRAPluginServer = &Driver{}
 
-type driver struct {
-	client coreclientset.Interface
-	plugin kubeletplugin.DRAPlugin
-	state  *DeviceState
+type Driver struct {
+	Client coreclientset.Interface
+	Plugin kubeletplugin.DRAPlugin
+	State  *state.DeviceState
 }
 
-func NewDriver(ctx context.Context, config *Config) (*driver, error) {
-	driver := &driver{
-		client: config.coreclient,
+func New(ctx context.Context, cfg *config.Config) (*Driver, error) {
+	drv := &Driver{
+		Client: cfg.Coreclient,
 	}
 
-	state, err := NewDeviceState(config)
+	deviceState, err := state.NewDeviceState(cfg)
 	if err != nil {
 		return nil, err
 	}
-	driver.state = state
+	drv.State = deviceState
 
 	plugin, err := kubeletplugin.Start(
 		ctx,
-		[]any{driver},
-		kubeletplugin.KubeClient(config.coreclient),
-		kubeletplugin.NodeName(config.flags.nodeName),
-		kubeletplugin.DriverName(DriverName),
-		kubeletplugin.RegistrarSocketPath(PluginRegistrationPath),
-		kubeletplugin.PluginSocketPath(DriverPluginSocketPath),
-		kubeletplugin.KubeletPluginSocketPath(DriverPluginSocketPath))
+		[]any{drv},
+		kubeletplugin.KubeClient(cfg.Coreclient),
+		kubeletplugin.NodeName(cfg.ProgArgs.NodeName),
+		kubeletplugin.DriverName(config.DriverName),
+		kubeletplugin.RegistrarSocketPath(config.DriverPluginRegistrationPath),
+		kubeletplugin.PluginSocketPath(config.DriverPluginSocketPath),
+		kubeletplugin.KubeletPluginSocketPath(config.DriverPluginSocketPath))
 	if err != nil {
 		return nil, err
 	}
-	driver.plugin = plugin
+	drv.Plugin = plugin
 
 	var resources kubeletplugin.Resources
-	for _, device := range state.allocatable {
+	for _, device := range deviceState.Allocatable {
 		resources.Devices = append(resources.Devices, device)
 	}
 	klog.InfoS("publishing resources", "resources", resources)
@@ -70,15 +72,15 @@ func NewDriver(ctx context.Context, config *Config) (*driver, error) {
 		return nil, err
 	}
 
-	return driver, nil
+	return drv, nil
 }
 
-func (d *driver) Shutdown(ctx context.Context) error {
-	d.plugin.Stop()
+func (d *Driver) Shutdown(ctx context.Context) error {
+	d.Plugin.Stop()
 	return nil
 }
 
-func (d *driver) NodePrepareResources(ctx context.Context, req *drapbv1.NodePrepareResourcesRequest) (*drapbv1.NodePrepareResourcesResponse, error) {
+func (d *Driver) NodePrepareResources(ctx context.Context, req *drapbv1.NodePrepareResourcesRequest) (*drapbv1.NodePrepareResourcesResponse, error) {
 	klog.Infof("NodePrepareResource is called: number of claims: %d", len(req.Claims))
 	preparedResources := &drapbv1.NodePrepareResourcesResponse{Claims: map[string]*drapbv1.NodePrepareResourceResponse{}}
 
@@ -89,8 +91,8 @@ func (d *driver) NodePrepareResources(ctx context.Context, req *drapbv1.NodePrep
 	return preparedResources, nil
 }
 
-func (d *driver) nodePrepareResource(ctx context.Context, claim *drapbv1.Claim) *drapbv1.NodePrepareResourceResponse {
-	resourceClaim, err := d.client.ResourceV1beta1().ResourceClaims(claim.Namespace).Get(
+func (d *Driver) nodePrepareResource(ctx context.Context, claim *drapbv1.Claim) *drapbv1.NodePrepareResourceResponse {
+	resourceClaim, err := d.Client.ResourceV1beta1().ResourceClaims(claim.Namespace).Get(
 		ctx,
 		claim.Name,
 		metav1.GetOptions{})
@@ -100,7 +102,7 @@ func (d *driver) nodePrepareResource(ctx context.Context, claim *drapbv1.Claim) 
 		}
 	}
 
-	prepared, err := d.state.Prepare(resourceClaim)
+	prepared, err := d.State.Prepare(resourceClaim)
 	if err != nil {
 		return &drapbv1.NodePrepareResourceResponse{
 			Error: fmt.Sprintf("error preparing devices for claim %v: %v", claim.UID, err),
@@ -111,7 +113,7 @@ func (d *driver) nodePrepareResource(ctx context.Context, claim *drapbv1.Claim) 
 	return &drapbv1.NodePrepareResourceResponse{Devices: prepared}
 }
 
-func (d *driver) NodeUnprepareResources(ctx context.Context, req *drapbv1.NodeUnprepareResourcesRequest) (*drapbv1.NodeUnprepareResourcesResponse, error) {
+func (d *Driver) NodeUnprepareResources(ctx context.Context, req *drapbv1.NodeUnprepareResourcesRequest) (*drapbv1.NodeUnprepareResourcesResponse, error) {
 	klog.Infof("NodeUnPrepareResource is called: number of claims: %d", len(req.Claims))
 	unpreparedResources := &drapbv1.NodeUnprepareResourcesResponse{Claims: map[string]*drapbv1.NodeUnprepareResourceResponse{}}
 
@@ -122,8 +124,8 @@ func (d *driver) NodeUnprepareResources(ctx context.Context, req *drapbv1.NodeUn
 	return unpreparedResources, nil
 }
 
-func (d *driver) nodeUnprepareResource(ctx context.Context, claim *drapbv1.Claim) *drapbv1.NodeUnprepareResourceResponse {
-	if err := d.state.Unprepare(claim.UID); err != nil {
+func (d *Driver) nodeUnprepareResource(ctx context.Context, claim *drapbv1.Claim) *drapbv1.NodeUnprepareResourceResponse {
+	if err := d.State.Unprepare(claim.UID); err != nil {
 		return &drapbv1.NodeUnprepareResourceResponse{
 			Error: fmt.Sprintf("error unpreparing devices for claim %v: %v", claim.UID, err),
 		}
